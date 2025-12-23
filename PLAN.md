@@ -14,7 +14,7 @@
     - `numpy`
     - `pyaudio` (音声再生用)
 - [ ] **外部リリースの配置**
-    - `VOICEVOX CODE` ライブラリファイル (dll/dylib/so)
+    - `VOICEVOX CODE (0.16.3)` ライブラリファイル (dll/dylib/so)
     - `open_jtalk_dic_utf_8-1.11`
     - `cmudict-0.7b` 系辞書ファイル (`eng_to_kana`用)
 
@@ -25,19 +25,19 @@
     - `reference/ZundaYomiageWinNotif/eng_to_kana.py` を移植・改修
     - `pykakasi` を統合し、トークン文字列から「読み（カタカナ）」と「モーラ数」を算出する機能の実装
 - [ ] **LLMクライアントモジュール** (`src/llm_client.py`)
-    - Ollama APIと通信し、テキスト生成と同時に `logprobs` (Confidence用) と `top_logprobs` (Confusion用) を取得する
+    - Ollama APIと通信し、テキスト生成と同時に `logprobs` (Pitch用) と `top_logprobs` (Speed用) を取得する
     - レスポンスをシステム用トークン構造体 (`token`, `prob`, `top_logprobs`, `latency` 等) に正規化する
 - [ ] **VOICEVOXアダプタ** (`src/tts_engine.py`)
-    - `voicevox_core` を初期化し、テキストから `AudioQuery` を生成する
+    - `voicevox_core` (0.16.3) を初期化し、テキストから `AudioQuery` を生成する
     - 変調なしで音声合成(WAV出力)ができるまでのパイプライン構築
 
 ### Phase 2: 感情物理演算とアライメントの実装
-本システムの核となる、メタデータから音声パラメータへの変換ロジックを実装する。
+トークンごとの相対変位と減衰（Decay）計算を実装し、自然な揺らぎを生成する。
 
 - [ ] **物理演算モデル** (`src/physics.py`)
-    - **Pitch系**: `prob` (確率) から `Confidence` スコア算出 → ピッチ変調
-    - **Speed系**: `top_logprobs` からエントロピー (`Confusion`) 算出 → スピード変調
-    - 減衰ロジックの実装: シリーズデータの不連続性を埋める時系列処理
+    - **Pitch系の相対変位**: `Confidence` (Prob) から変位衝撃値 ($I_t$) を算出
+    - **Speed系の相対変位**: `Confusion` (Entropy) から変位衝撃値 ($I_t$) を算出
+    - **減衰シミュレーション**: $V_t = V_{t-1} \times \text{DECAY} + I_t \times \text{SENSITIVITY}$ の漸化式を実装
 - [ ] **アライメント処理** (`src/alignment.py`)
     - LLMの「トークン」単位のデータを、VOICEVOXの「モーラ」単位にマッピングするロジック
     - トークンの母音数・モーラ数に基づく長さの同期
