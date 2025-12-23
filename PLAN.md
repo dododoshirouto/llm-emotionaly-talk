@@ -25,19 +25,19 @@
     - `reference/ZundaYomiageWinNotif/eng_to_kana.py` を移植・改修
     - `pykakasi` を統合し、トークン文字列から「読み（カタカナ）」と「モーラ数」を算出する機能の実装
 - [ ] **LLMクライアントモジュール** (`src/llm_client.py`)
-    - Ollama APIと通信し、テキスト生成と同時に `logprobs` (確率情報) を取得する
-    - レスポンスをシステム用トークン構造体 (`token`, `prob`, `latency` 等) に正規化する
+    - Ollama APIと通信し、テキスト生成と同時に `logprobs` (Confidence用) と `top_logprobs` (Confusion用) を取得する
+    - レスポンスをシステム用トークン構造体 (`token`, `prob`, `top_logprobs`, `latency` 等) に正規化する
 - [ ] **VOICEVOXアダプタ** (`src/tts_engine.py`)
     - `voicevox_core` を初期化し、テキストから `AudioQuery` を生成する
     - 変調なしで音声合成(WAV出力)ができるまでのパイプライン構築
 
 ### Phase 2: 感情物理演算とアライメントの実装
-本システムの核となる、確率から音声パラメータへの変換ロジックを実装する。
+本システムの核となる、メタデータから音声パラメータへの変換ロジックを実装する。
 
 - [ ] **物理演算モデル** (`src/physics.py`)
-    - 確率 (`prob`) から `Confidence` / `Interest` スコアへの変換
-    - 減衰ロジックの実装: 前回値と減衰率 (`DECAY_RATE`) を用いた時系列変化の計算
-    - 変調量 (`pitch_mod`, `speed_mod`) の算出
+    - **Pitch系**: `prob` (確率) から `Confidence` スコア算出 → ピッチ変調
+    - **Speed系**: `top_logprobs` からエントロピー (`Confusion`) 算出 → スピード変調
+    - 減衰ロジックの実装: シリーズデータの不連続性を埋める時系列処理
 - [ ] **アライメント処理** (`src/alignment.py`)
     - LLMの「トークン」単位のデータを、VOICEVOXの「モーラ」単位にマッピングするロジック
     - トークンの母音数・モーラ数に基づく長さの同期
