@@ -1,0 +1,4 @@
+ollama
+pykakasi
+alkana
+numpy
