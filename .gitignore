@@ -1,1 +1,7 @@
 references
+venv/
+voicevox_core/
+*.whl
+installer/
+__pycache__/
+*.pyc

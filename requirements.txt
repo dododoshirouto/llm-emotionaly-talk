@@ -1,0 +1,4 @@
+pykakasi
+alkana
+numpy
+requests
