@@ -5,6 +5,7 @@ $VOICEVOX_VERSION = "0.15.7"
 $PYTHON_CMD = "python"
 $VENV_DIR = "venv"
 $REQUIREMENTS = "requirements.txt"
+$CORE_DIR = "voicevox_core"
 
 Write-Host "=== Environment Setup Start ===" -ForegroundColor Cyan
 
@@ -24,7 +25,6 @@ if (-not (Test-Path $VENV_DIR)) {
     Write-Host "Virtual environment already exists." -ForegroundColor Green
 }
 
-# Define paths for venv execution
 $PIP_CMD = "$VENV_DIR\Scripts\pip.exe"
 $PYTHON_VENV_CMD = "$VENV_DIR\Scripts\python.exe"
 
@@ -36,56 +36,74 @@ Write-Host "Upgrading pip..." -ForegroundColor Yellow
 if (Test-Path $REQUIREMENTS) {
     Write-Host "Installing requirements from $REQUIREMENTS..." -ForegroundColor Yellow
     & $PIP_CMD install -r $REQUIREMENTS
-} else {
-    Write-Warning "$REQUIREMENTS not found. Skipping."
 }
 
-# 5. Setup VOICEVOX Core
-$VOICEVOX_DIR = "answer_voicevox_core" # Changed to avoid conflict or just keep root? Using root as per prev plan instructions usually means keeping dlls in root or specific folder.
-# The user wants "voicevox_core/" folder for dlls as per gitignore?
-# The downloader extracts to current directory usually or we can specify.
-# Let's check if the directory "voicevox_core" exists (which contains the DLLs). 
-# Actually the downloader creates a folder or specific files?
-# Let's use a specific folder "voicevox_core" to keep things clean if possible, but the python binding needs to find the dll.
-# Usually standard practice for this project seems to be dumping DLLs in root or adding to PATH.
-# Let's follow the reference script logic: it puts DLLs in root or specific folder and loads them.
-# Plan said: "Check: voicevox_core folder (DLLs etc)"
+# 5. Setup VOICEVOX Core (Manual Download)
+if (-not (Test-Path $CORE_DIR)) {
+    Write-Host "Setting up VOICEVOX Core $VOICEVOX_VERSION (Manual Download)..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Force -Path $CORE_DIR | Out-Null
 
-if (-not (Test-Path "voicevox_core")) {
-    Write-Host "Setting up VOICEVOX Core $VOICEVOX_VERSION..." -ForegroundColor Yellow
+    # 5a. Download Core Libraries (Zip)
+    $CORE_ZIP = "voicevox_core-windows-x64-cpu-$VOICEVOX_VERSION.zip"
+    $CORE_URL = "https://github.com/VOICEVOX/voicevox_core/releases/download/$VOICEVOX_VERSION/$CORE_ZIP"
     
-    # Download Downloader
-    $DOWNLOADER_URL = "https://github.com/VOICEVOX/voicevox_core/releases/download/$VOICEVOX_VERSION/download-windows-x64.exe"
-    $DOWNLOADER_EXE = "voicevox-download-windows-x64.exe"
+    if (-not (Test-Path $CORE_ZIP)) {
+        Write-Host "Downloading Core Libraries from $CORE_URL..."
+        Invoke-WebRequest -Uri $CORE_URL -OutFile $CORE_ZIP
+    }
     
-    Write-Host "Downloading $DOWNLOADER_EXE..."
-    Invoke-WebRequest -Uri $DOWNLOADER_URL -OutFile $DOWNLOADER_EXE
-
-    # Run Downloader
-    # Options: -v VERSION -o OUTPUT_DIR
-    # We want to output to "voicevox_core" directory
-    Write-Host "Running downloader..."
-    Start-Process -FilePath .\$DOWNLOADER_EXE -ArgumentList "-v $VOICEVOX_VERSION -o ./voicevox_core" -Wait -NoNewWindow
-
-    # Cleanup Downloader
-    Remove-Item $DOWNLOADER_EXE
+    Write-Host "Extracting Core Libraries..."
+    Expand-Archive -Path $CORE_ZIP -DestinationPath "temp_core" -Force
+    
+    # Move contents to VOICEVOX_DIR
+    # The zip usually contains a folder named like "voicevox_core-windows-x64-cpu-0.15.7"
+    # We want the contents of that folder to be in $CORE_DIR
+    $EXTRACTED_ROOT = Get-ChildItem -Path "temp_core" -Directory | Select-Object -First 1
+    Copy-Item -Path "$($EXTRACTED_ROOT.FullName)\*" -Destination $CORE_DIR -Recurse -Force
+    
+    # Cleanup
+    Remove-Item "temp_core" -Recurse -Force
+    Remove-Item $CORE_ZIP
 } else {
-    Write-Host "voicevox_core directory likely exists. Skipping download." -ForegroundColor Green
+    Write-Host "voicevox_core directory exists. Skipping download." -ForegroundColor Green
 }
 
-# 6. Install VOICEVOX Core Python Wheel
+# 6. Setup Dictionary (OpenJTalk)
+$DICT_DIR = "$CORE_DIR\open_jtalk_dic_utf_8-1.11"
+if (-not (Test-Path $DICT_DIR)) {
+    Write-Host "Setting up OpenJTalk Dictionary..." -ForegroundColor Yellow
+    
+    # Using a stable mirror or direct link. 
+    # Official Sourceforge is annoying for scripts (redirects). Github mirror from r9y9 is better.
+    $DICT_TAR = "open_jtalk_dic_utf_8-1.11.tar.gz"
+    $DICT_URL = "https://github.com/r9y9/open_jtalk/releases/download/v1.11.1/$DICT_TAR"
+    
+    if (-not (Test-Path $DICT_TAR)) {
+        Write-Host "Downloading Dictionary from $DICT_URL..."
+        Invoke-WebRequest -Uri $DICT_URL -OutFile $DICT_TAR
+    }
+
+    Write-Host "Extracting Dictionary..."
+    # Windows native tar (if available) or rely on others. Windows 10+ has tar.
+    # Note: PowerShell 5.1 might verify tar availability.
+    tar -xf $DICT_TAR -C $CORE_DIR
+    
+    # Cleanup
+    Remove-Item $DICT_TAR
+} else {
+    Write-Host "Dictionary directory exists." -ForegroundColor Green
+}
+
+# 7. Install VOICEVOX Core Python Wheel
 Write-Host "Installing VOICEVOX Core Python Wheel..." -ForegroundColor Yellow
-# Note: Ensure this URL matches the python version installed. Assuming cp38 ABI compatible (works on 3.8 ~ 3.12 usually for abi3)
 $WHEEL_URL = "https://github.com/VOICEVOX/voicevox_core/releases/download/$VOICEVOX_VERSION/voicevox_core-$VOICEVOX_VERSION+cpu-cp38-abi3-win_amd64.whl"
 
-& $PIP_CMD install $WHEEL_URL
-
-# 7. Check Dictionary
-# The downloader should have downloaded the dictionary into voicevox_core/open_jtalk_dic_utf_8-1.11 usually?
-# Let's verify. The downloader behavior: it downloads libraries and dicts.
-# We just notify the user.
+# Force reinstall to ensure deps are correct (sometimes conflicts leave mess)
+& $PIP_CMD install --force-reinstall --no-deps $WHEEL_URL
+# Re-install requirements to ensure they are satisfied
+& $PIP_CMD install -r $REQUIREMENTS
 
 Write-Host "=== Setup Complete ===" -ForegroundColor Cyan
 Write-Host "To start using the environment:"
 Write-Host "1. Activate venv: .\venv\Scripts\activate"
-Write-Host "2. Ensure 'voicevox_core' directory is accessible or paths are set correctly in your code."
+Write-Host "2. voicevox_core libraries are in: $CORE_DIR"

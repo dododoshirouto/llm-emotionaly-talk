@@ -1,4 +1,4 @@
-ollama
 pykakasi
 alkana
 numpy
+requests
