@@ -3,6 +3,7 @@ import json
 from typing import Dict, Any, Generator, List
 import subprocess
 import time
+import random
 
 class OllamaClient:
     def __init__(self, base_url: str = "http://localhost:11434"):
@@ -103,6 +104,11 @@ class OllamaClient:
         """
         Normalize Ollama response chunk to system standard.
         """
+        # Debug: Print raw chunk to debug empty content
+        # if not hasattr(self, "_debug_printed"):
+        #      print(f"DEBUG First Chunk: {chunk}")
+        #      self._debug_printed = True 
+        
         # chunk structure typical:
         # { "model": "...", "created_at": "...", "response": "t", "done": false }
         # If 'logprobs' is supported/enabled, it might be in context?
@@ -114,9 +120,17 @@ class OllamaClient:
         return {
             "token": chunk.get("response", ""),
             "done": chunk.get("done", False),
-            # Placeholders for future emotional data
-            "prob": 1.0, # Default high confidence
-            "top_logprobs": [] # Default empty
+            
+            # [MOCK] Emotional Data Injection
+            # If API doesn't provide 'prob', we use SAFE DEFAULTS (Neutral).
+            # prob: 1.0 (Confident)
+            # entropy: 0.0 (Clear)
+            
+            "prob": chunk.get("prob", 1.0),
+            "entropy": chunk.get("entropy", 0.0),
+            
+            # Future: Real extraction logic
+            # "top_logprobs": [] 
         }
 
 if __name__ == "__main__":

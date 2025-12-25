@@ -52,50 +52,50 @@ class TokenMoraMapper:
                 
         return aligned_moras
 
-    def align_with_audio_query(self, audio_query: Dict[str, Any], aligned_values: List[Dict[str, Any]]):
+    def get_aligned_emotions(self, audio_query: Any, aligned_values: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Injects the aligned emotion values into the AudioQuery's moras.
-        Note: AudioQuery generation by Voicevox might differ slightly in mora count
-        than our naive calculation. We must handle length mismatch safely.
+        Returns a list of emotion data dicts that corresponds 1-to-1 with the 
+        flattened moras of the provided audio_query.
         """
-        # audio_query is a dict (JSON). It has 'accent_phrases'.
-        # Each accent_phrase has 'moras'.
-        # We need to flatten the query's moras to iterate.
+        # 1. Flatten the AudioQuery moras to count them and establish order
+        #    Note: audio_query might be a Dict or an Object depending on binding.
+        #    We assume attribute access 'accent_phrases' works or dict access.
+        #    Safe way: try dict access, fall back to attribute.
         
-        query_moras_ref = []
-        for phrase in audio_query.get("accent_phrases", []):
-            for mora in phrase.get("moras", []):
-                query_moras_ref.append(mora)
-                
-        # Now match aligned_values to query_moras_ref
-        # Naive matching: 1-to-1 until one runs out.
-        # Better: Ratio-based interpolation?
-        # Given we are "simulating" physics, 1-to-1 mapping with stretching/compressing
-        # or just simple cutoff is okay for Phase 2 prototype.
-        
-        # Our Count vs True Count
-        our_count = len(aligned_values)
-        true_count = len(query_moras_ref)
-        
-        print(f"Alignment Debug: Est Moras: {our_count}, Actual Moras: {true_count}")
-        
-        # Mapping loop
-        for i, q_mora in enumerate(query_moras_ref):
-            if i < our_count:
-                vals = aligned_values[i]
-                # Inject temp values into mora for later consumption by Physics Engine?
-                # Or apply Physics HERE?
-                # Architecture: 
-                # 1. Map Tokens -> Emotion Stream (Confidence/Entropy)
-                # 2. Physics Engine processes Stream -> Dynamics Stream (Pitch/Speed Delta)
-                # 3. Dynamics Stream applies to Moras.
-                
-                # We can store the raw emotion metrics in the mora dict for now
-                q_mora["_emotion_confidence"] = vals["confidence"]
-                q_mora["_emotion_entropy"] = vals["entropy"]
+        def get_attr(obj, key):
+            if isinstance(obj, dict):
+                return obj.get(key)
             else:
-                # Out of bounds - use defaults
-                q_mora["_emotion_confidence"] = 1.0
-                q_mora["_emotion_entropy"] = 0.0
+                return getattr(obj, key, [])
 
-        return audio_query
+        accent_phrases = get_attr(audio_query, "accent_phrases")
+        
+        flattened_moras = []
+        for phrase in accent_phrases:
+            moras = get_attr(phrase, "moras")
+            for mora in moras:
+                flattened_moras.append(mora)
+                
+        # 2. Map aligned_tokens to these moras
+        #    We assume the text processing phase aligned roughly correctly.
+        #    We will stretch/compress or just map 1:1.
+        
+        final_emotions = []
+        
+        token_mora_idx = 0
+        total_token_moras = len(aligned_values)
+        
+        for i, _ in enumerate(flattened_moras):
+            if token_mora_idx < total_token_moras:
+                # Copy emotion from the aligned token-mora
+                final_emotions.append(aligned_values[token_mora_idx])
+                token_mora_idx += 1
+            else:
+                # Padding if query is longer than expected
+                final_emotions.append({
+                    "confidence": 1.0, 
+                    "entropy": 0.0,
+                    "source_token": "__PAD__"
+                })
+                
+        return final_emotions
