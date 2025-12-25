@@ -1,6 +1,16 @@
 # 詳細仕様書：動的感情韻律変調システム (End-to-End Flow)
 
-## 0. 環境構築
+## 0. 進捗状況 (Current Status)
+
+- **Phase 1: 基本モジュール実装** -> [完了]
+    - テキスト処理 (`alkana`, `pykakasi`)
+    - Ollama通信 (`OpenAI API`互換, 自動起動ロジック)
+    - VoicevoxCore制御 (初期化, AQ生成, 合成)
+- **Phase 2: 感情動態・アライメント** -> [完了]
+    - 感情動態モデル (`src/emotion_dynamics.py`): 減衰・変位計算
+    - アライメント (`src/alignment.py`): トークン→モーラのマッピング
+
+## 0.5. 環境構築
 
 以下のスクリプトを実行することで、必要なPython仮想環境、ライブラリ、VOICEVOX Core本体、辞書ファイルが自動的にインストールされます。
 
@@ -57,8 +67,8 @@ graph TD
     Alignment --> Mapping[モーラ/トークン対応付け]
     
     %% Phase 5: Modulation
-    Mapping --> ModPitch[ピッチ変調<br>(単純加算)]
-    Mapping --> ModSpeed[スピード/長さ変調<br>(単純加算)]
+    Mapping --> ModPitch[ピッチ変調]
+    Mapping --> ModSpeed[スピード/長さ変調]
     
     %% Phase 6: Output
     ModSpeed --> Synth[VoicevoxCore.synthesis<br>音声生成]
@@ -87,10 +97,11 @@ graph TD
 1. **セッション初期化**: システムプロンプト（キャラ設定）を含むメッセージ履歴を作成。
 2. **クエリ送信**: ユーザー入力を追記し、Ollama APIへリクエスト (`stream=False` または全受信待ち)。
    * 必須オプション: 
-     * `logprobs=True`
-     * `top_logprobs=5` (エントロピー計算用に上位5候補を取得)
+     * `logprobs=True` (またはそれに準ずる不確実性情報の取得)
+     * `top_logprobs=5` (エントロピー計算用)
+   * **自動起動**: Ollamaサーバーが未起動の場合、自動的にバックグラウンドで起動を試みる。
 
-3. **データ構造化**: 受信したレスポンスを以下の構造のリストに変換する。
+3. **データ構造化**: 受信したレスポンスをトークン構造体に変換する。
 ```python
 raw_tokens = [
     {
